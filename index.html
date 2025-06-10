@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>番茄大棚实时监测系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --secondary: #2196F3;
+            --danger: #F44336;
+            --warning: #FFC107;
+            --dark: #333;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f0f2f5;
+            color: var(--dark);
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            grid-template-rows: 80px 1fr;
+            grid-template-areas:
+                "header header"
+                "main sidebar";
+            height: 100vh;
+            gap: 15px;
+            padding: 15px;
+        }
+        
+        header {
+            grid-area: header;
+            background: linear-gradient(135deg, #2c7744, #4CAF50);
+            color: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo i {
+            font-size: 2rem;
+        }
+        
+        .logo h1 {
+            font-weight: 600;
+            font-size: 1.8rem;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 25px;
+            font-size: 1rem;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+        }
+        
+        .status-indicator.offline {
+            background-color: var(--danger);
+        }
+        
+        main {
+            grid-area: main;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .video-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .video-header {
+            padding: 15px;
+            border-bottom: 1px solid #eaeaea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .video-title {
+            font-weight: 600;
+            color: var(--dark);
+        }
+        
+        .video-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--gray);
+            color: var(--gray);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        
+        #video-stream {
+            flex: 1;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        #video-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-card i {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+        
+        .stat-card.danger i {
+            color: var(--danger);
+        }
+        
+        .stat-card.warning i {
+            color: var(--warning);
+        }
+        
+        .stat-card.primary i {
+            color: var(--secondary);
+        }
+        
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+        
+        aside {
+            grid-area: sidebar;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .panel {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 20px;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .chart-container {
+            height: 250px;
+            position: relative;
+        }
+        
+        .disease-list {
+            list-style: none;
+        }
+        
+        .disease-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .disease-item:last-child {
+            border-bottom: none;
+        }
+        
+        .disease-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .disease-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--danger);
+        }
+        
+        .disease-count {
+            font-weight: 600;
+        }
+        
+        .size-distribution {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .size-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .size-label {
+            width: 70px;
+            font-size: 0.9rem;
+        }
+        
+        .size-bar {
+            flex: 1;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .size-fill {
+            height: 100%;
+            background-color: var(--primary);
+            border-radius: 10px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transform: translateX(120%);
+            transition: transform 0.3s ease-out;
+            z-index: 1000;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification i {
+            font-size: 1.2rem;
+        }
+        
+        .notification.warning i {
+            color: var(--warning);
+        }
+        
+        .notification.danger i {
+            color: var(--danger);
+        }
+        
+        .notification.success i {
+            color: var(--primary);
+        }
+        
+        .notification-content {
+            flex: 1;
+        }
+        
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        
+        .notification-message {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+        
+        .connection-panel {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        
+        .connection-form {
+            display: grid;
+            gap: 10px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-label {
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            color: var(--gray);
+        }
+        
+        .form-input {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+        }
+        
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "header"
+                    "main"
+                    "sidebar";
+            }
+            
+            aside {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            
+            .panel {
+                flex: 1 1 300px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .status-bar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-seedling"></i>
+                <h1>番茄大棚智能监测系统</h1>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-indicator" id="video-status"></div>
+                    <span>视频流: <span id="video-status-text">离线</span></span>
+                </div>
+                <div class="status-item">
+                    <div class="status-indicator" id="data-status"></div>
+                    <span>检测数据: <span id="data-status-text">离线</span></span>
+                </div>
+                <div class="status-item">
+                    <div class="status-indicator" id="ai-status"></div>
+                    <span>AI模型: <span id="ai-status-text">离线</span></span>
+                </div>
+            </div>
+        </header>
+        
+        <main>
+            <div class="video-container">
+                <div class="video-header">
+                    <div class="video-title">大棚实时监控 - 区域A</div>
+                    <div class="video-controls">
+                        <button class="btn btn-outline" id="snapshot-btn">
+                            <i class="fas fa-camera"></i> 截图
+                        </button>
+                        <button class="btn btn-primary" id="refresh-btn">
+                            <i class="fas fa-sync-alt"></i> 刷新视频
+                        </button>
+                    </div>
+                </div>
+                <div id="video-stream">
+                    <img
+                        id="streamImg"
+                        src="http://192.168.209.187:5000/stream?topic=/usb_cam/image_raw&quality=95"
+                        alt="实时视频流"
+                        onerror="handleStreamError()"
+                        onload="handleStreamSuccess()"
+                        />
+                    <div id="video-placeholder">
+                        <i class="fas fa-video-slash" style="font-size: 3rem; color: #6c757d;"></i>
+                        <p>视频流未连接</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stats-container">
+                <div class="stat-card">
+                    <i class="fas fa-apple-alt"></i>
+                    <div class="stat-value" id="tomato-count">0</div>
+                    <div class="stat-label">检测到的番茄数量</div>
+                </div>
+                
+                <div class="stat-card">
+                    <i class="fas fa-bug"></i>
+                    <div class="stat-value" id="disease-count">0</div>
+                    <div class="stat-label">病虫害番茄数量</div>
+                </div>
+                
+                <div class="stat-card warning">
+                    <i class="fas fa-ruler-combined"></i>
+                    <div class="stat-value" id="avg-size">0 cm</div>
+                    <div class="stat-label">平均大小</div>
+                </div>
+                
+                <div class="stat-card primary">
+                    <i class="fas fa-chart-line"></i>
+                    <div class="stat-value" id="maturity-rate">0%</div>
+                    <div class="stat-label">平均成熟度</div>
+                </div>
+            </div>
+        </main>
+        
+        <aside>
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">成熟度分布</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="maturity-chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">病虫害检测</div>
+                </div>
+                <ul class="disease-list" id="disease-list">
+                    <li class="disease-item">
+                        <div class="disease-name">
+                            <div class="disease-indicator"></div>
+                            <span>白粉病</span>
+                        </div>
+                        <div class="disease-count">0</div>
+                    </li>
+                    <li class="disease-item">
+                        <div class="disease-name">
+                            <div class="disease-indicator"></div>
+                            <span>灰霉病</span>
+                        </div>
+                        <div class="disease-count">0</div>
+                    </li>
+                    <li class="disease-item">
+                        <div class="disease-name">
+                            <div class="disease-indicator"></div>
+                            <span>叶霉病</span>
+                        </div>
+                        <div class="disease-count">0</div>
+                    </li>
+                    <li class="disease-item">
+                        <div class="disease-name">
+                            <div class="disease-indicator"></div>
+                            <span>蚜虫感染</span>
+                        </div>
+                        <div class="disease-count">0</div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">番茄大小分布</div>
+                </div>
+                <div class="size-distribution">
+                    <div class="size-item">
+                        <div class="size-label">小型 (&lt;5cm)</div>
+                        <div class="size-bar">
+                            <div class="size-fill" id="size-small" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="size-item">
+                        <div class="size-label">中型 (5-8cm)</div>
+                        <div class="size-bar">
+                            <div class="size-fill" id="size-medium" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="size-item">
+                        <div class="size-label">大型 (&gt;8cm)</div>
+                        <div class="size-bar">
+                            <div class="size-fill" id="size-large" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">系统连接设置</div>
+                </div>
+                <div class="connection-panel">
+                    <div class="form-group">
+                        <label class="form-label">Jetson IP地址</label>
+                        <input type="text" id="jetson-ip" class="form-input" value="192.168.1.50">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">数据服务端口</label>
+                        <input type="text" id="data-port" class="form-input" value="8888">
+                    </div>
+                    <button class="btn btn-primary" id="connect-btn" style="margin-top: 10px; width: 100%;">
+                        <i class="fas fa-plug"></i> 连接系统
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </div>
+    
+    <div class="notification" id="notification">
+        <i class="fas fa-info-circle"></i>
+        <div class="notification-content">
+            <div class="notification-title">系统通知</div>
+            <div class="notification-message">欢迎使用番茄大棚监测系统</div>
+        </div>
+    </div>
+    
+    <script>
+        // 系统配置
+        const config = {
+            // 默认连接参数
+            jetsonIp: '192.168.209.187',
+            dataPort: '5000',
+            
+            // 番茄成熟度阈值
+            maturityThresholds: {
+                green: 30,
+                yellow: 70,
+                red: 100
+            },
+            
+            // 番茄大小分类阈值 (cm)
+            sizeThresholds: {
+                small: 5,
+                medium: 8
+            }
+        };
+        
+        // DOM元素
+        const elements = {
+            videoImg: document.getElementById('video-img'),
+            videoPlaceholder: document.getElementById('video-placeholder'),
+            tomatoCount: document.getElementById('tomato-count'),
+            diseaseCount: document.getElementById('disease-count'),
+            avgSize: document.getElementById('avg-size'),
+            maturityRate: document.getElementById('maturity-rate'),
+            maturityChart: document.getElementById('maturity-chart'),
+            diseaseList: document.getElementById('disease-list'),
+            sizeSmall: document.getElementById('size-small'),
+            sizeMedium: document.getElementById('size-medium'),
+            sizeLarge: document.getElementById('size-large'),
+            notification: document.getElementById('notification'),
+            snapshotBtn: document.getElementById('snapshot-btn'),
+            refreshBtn: document.getElementById('refresh-btn'),
+            connectBtn: document.getElementById('connect-btn'),
+            jetsonIpInput: document.getElementById('jetson-ip'),
+            dataPortInput: document.getElementById('data-port'),
+            videoStatus: document.getElementById('video-status'),
+            videoStatusText: document.getElementById('video-status-text'),
+            dataStatus: document.getElementById('data-status'),
+            dataStatusText: document.getElementById('data-status-text'),
+            aiStatus: document.getElementById('ai-status'),
+            aiStatusText: document.getElementById('ai-status-text')
+        };
+        
+        // 系统状态
+        let state = {
+            isConnected: false,
+            lastData: null,
+            chart: null,
+            dataSocket: null,
+            videoStreamUrl: '',
+            dataWsUrl: '',
+            videoErrorCount: 0
+        };
+        
+        // 初始化函数
+        function init() {
+            setupCharts();
+            setupEventListeners();
+            updateStatusIndicators();
+            showNotification('系统已启动', '请配置连接参数并连接系统', 'success');
+        }
+        
+        // 设置图表
+        function setupCharts() {
+            // 成熟度分布图表
+            const ctx = elements.maturityChart.getContext('2d');
+            state.chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['未成熟', '半成熟', '成熟'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: [
+                            '#4CAF50', // 绿色
+                            '#FFC107', // 黄色
+                            '#F44336'  // 红色
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 设置事件监听
+        function setupEventListeners() {
+            // 截图按钮
+            elements.snapshotBtn.addEventListener('click', takeSnapshot);
+            
+            // 刷新视频按钮
+            elements.refreshBtn.addEventListener('click', refreshVideoStream);
+            
+            // 连接按钮
+            elements.connectBtn.addEventListener('click', connectSystem);
+            
+            // 视频错误处理
+            elements.videoImg.addEventListener('error', handleVideoError);
+            
+            // 视频加载成功处理
+            elements.videoImg.addEventListener('load', handleVideoLoad);
+        }
+        
+        // 连接系统
+        function connectSystem() {
+            // 获取配置参数
+            config.jetsonIp = elements.jetsonIpInput.value;
+            config.dataPort = elements.dataPortInput.value;
+            
+            // 构建URL
+            state.videoStreamUrl = `http://${config.jetsonIp}:${dataPort}/stream?topic=/usb_cam/image_raw&quality=95`;
+            state.dataWsUrl = `ws://${config.jetsonIp}:${config.dataPort}`;
+            
+            // 连接视频流
+            connectVideoStream();
+            
+            // 连接数据服务
+            connectDataService();
+            
+            showNotification('系统连接中', '正在连接Jetson设备...', 'warning');
+        }
+        
+        // 连接视频流
+        function connectVideoStream() {
+            elements.videoImg.src = state.videoStreamUrl + '&' + new Date().getTime();
+            elements.videoPlaceholder.style.display = 'none';
+            elements.videoImg.style.display = 'block';
+            
+            updateStatusIndicator('video', 'connecting');
+        }
+        
+        // 刷新视频流
+        function refreshVideoStream() {
+            elements.videoImg.src = state.videoStreamUrl + '&' + new Date().getTime();
+            updateStatusIndicator('video', 'connecting');
+            showNotification('视频流刷新', '正在重新连接视频流...', 'warning');
+        }
+        
+        // 处理视频错误
+        function handleVideoError() {
+            state.videoErrorCount++;
+            
+            if (state.videoErrorCount > 2) {
+                elements.videoImg.style.display = 'none';
+                elements.videoPlaceholder.style.display = 'flex';
+                updateStatusIndicator('video', 'offline');
+                showNotification('视频流错误', '无法连接到视频源，请检查配置', 'danger');
+            } else {
+                // 重试
+                setTimeout(() => {
+                    elements.videoImg.src = state.videoStreamUrl + '&' + new Date().getTime();
+                }, 2000);
+            }
+        }
+        
+        // 处理视频加载
+        function handleVideoLoad() {
+            state.videoErrorCount = 0;
+            updateStatusIndicator('video', 'online');
+        }
+        
+        // 连接数据服务
+        function connectDataService() {
+            if (state.dataSocket) {
+                state.dataSocket.close();
+            }
+            
+            state.dataSocket = new WebSocket(state.dataWsUrl);
+            
+            state.dataSocket.onopen = () => {
+                updateStatusIndicator('data', 'online');
+                updateStatusIndicator('ai', 'online');
+                showNotification('数据连接成功', '开始接收检测数据', 'success');
+            };
+            
+            state.dataSocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    state.lastData = data;
+                    updateUI(data);
+                } catch (e) {
+                    console.error('数据解析错误:', e);
+                }
+            };
+            
+            state.dataSocket.onerror = (error) => {
+                console.error('WebSocket错误:', error);
+                updateStatusIndicator('data', 'offline');
+                showNotification('连接错误', '数据连接中断', 'danger');
+            };
+            
+            state.dataSocket.onclose = () => {
+                updateStatusIndicator('data', 'offline');
+                updateStatusIndicator('ai', 'offline');
+                showNotification('连接关闭', '数据连接已断开', 'warning');
+            };
+        }
+        
+        // 更新UI
+        function updateUI(data) {
+            // 更新统计卡片
+            elements.tomatoCount.textContent = data.count;
+            elements.diseaseCount.textContent = data.disease_count || 0;
+            elements.avgSize.textContent = data.avg_size ? data.avg_size.toFixed(1) + ' cm' : '0 cm';
+            elements.maturityRate.textContent = data.avg_maturity ? data.avg_maturity.toFixed(0) + '%' : '0%';
+            
+            // 更新成熟度分布图
+            if (data.maturity_distribution) {
+                state.chart.data.datasets[0].data = [
+                    data.maturity_distribution.green || 0,
+                    data.maturity_distribution.yellow || 0,
+                    data.maturity_distribution.red || 0
+                ];
+                state.chart.update();
+            }
+            
+            // 更新病虫害列表
+            if (data.disease_details) {
+                const diseaseItems = elements.diseaseList.querySelectorAll('.disease-item');
+                diseaseItems.forEach((item, index) => {
+                    const diseaseName = item.querySelector('span').textContent;
+                    const count = data.disease_details[diseaseName] || 0;
+                    item.querySelector('.disease-count').textContent = count;
+                });
+            }
+            
+            // 更新大小分布
+            if (data.size_distribution) {
+                const total = data.size_distribution.small + 
+                             data.size_distribution.medium + 
+                             data.size_distribution.large;
+                
+                if (total > 0) {
+                    elements.sizeSmall.style.width = `${(data.size_distribution.small / total) * 100}%`;
+                    elements.sizeMedium.style.width = `${(data.size_distribution.medium / total) * 100}%`;
+                    elements.sizeLarge.style.width = `${(data.size_distribution.large / total) * 100}%`;
+                }
+            }
+            
+            // 如果有病虫害，显示警告
+            if (data.disease_count > 0 && !state.lastDiseaseAlert) {
+                showNotification('病虫害警告', '检测到病虫害番茄，请及时处理！', 'danger');
+                state.lastDiseaseAlert = true;
+            } else if (data.disease_count === 0) {
+                state.lastDiseaseAlert = false;
+            }
+        }
+        
+        // 截图功能
+        function takeSnapshot() {
+            if (elements.videoImg.style.display !== 'block') return;
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = elements.videoImg.naturalWidth;
+            canvas.height = elements.videoImg.naturalHeight;
+            
+            ctx.drawImage(elements.videoImg, 0, 0, canvas.width, canvas.height);
+            
+            const link = document.createElement('a');
+            link.download = `tomato-snapshot-${new Date().toISOString().replace(/:/g, '-')}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            showNotification('截图已保存', '当前画面已下载', 'success');
+        }
+        
+        // 显示通知
+        function showNotification(title, message, type) {
+            const iconMap = {
+                'warning': 'exclamation-triangle',
+                'danger': 'exclamation-circle',
+                'success': 'check-circle'
+            };
+            
+            elements.notification.innerHTML = `
+                <i class="fas fa-${iconMap[type] || 'info-circle'}"></i>
+                <div class="notification-content">
+                    <div class="notification-title">${title}</div>
+                    <div class="notification-message">${message}</div>
+                </div>
+            `;
+            
+            elements.notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                elements.notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 更新状态指示器
+        function updateStatusIndicator(type, status) {
+            const indicatorMap = {
+                'video': elements.videoStatus,
+                'data': elements.dataStatus,
+                'ai': elements.aiStatus
+            };
+            
+            const textMap = {
+                'video': elements.videoStatusText,
+                'data': elements.dataStatusText,
+                'ai': elements.aiStatusText
+            };
+            
+            const statusTextMap = {
+                'online': '在线',
+                'offline': '离线',
+                'connecting': '连接中'
+            };
+            
+            const statusClassMap = {
+                'online': 'online',
+                'offline': 'offline',
+                'connecting': 'connecting'
+            };
+            
+            if (indicatorMap[type] && textMap[type]) {
+                indicatorMap[type].className = `status-indicator ${statusClassMap[status]}`;
+                textMap[type].textContent = statusTextMap[status];
+            }
+        }
+        
+        // 更新所有状态指示器
+        function updateStatusIndicators() {
+            updateStatusIndicator('video', 'offline');
+            updateStatusIndicator('data', 'offline');
+            updateStatusIndicator('ai', 'offline');
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
